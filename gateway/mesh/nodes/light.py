@@ -32,6 +32,8 @@ class Light(Generic):
     OnOffProperty = "onoff"
     BrightnessProperty = "brightness"
     TemperatureProperty = "temperature"
+    HueProperty = "hue"
+    SaturationProperty = "saturation"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -97,6 +99,10 @@ class Light(Generic):
             await self.get_ctl()
             await self.get_light_temperature_range()
 
+        if await self.bind_model(models.LightHSLServer):
+            self._features.add(Light.HueProperty)
+            self._features.add(Light.SaturationProperty)
+
     async def set_onoff_unack(self, onoff, **kwargs):
         self.notify(Light.OnOffProperty, onoff)
         client = self._app.elements[0][models.GenericOnOffClient]
@@ -135,6 +141,15 @@ class Light(Generic):
 
         client = self._app.elements[0][models.LightLightnessClient]
         await client.set_lightness([self.unicast], app_index=self._app.app_keys[0][0], lightness=lightness, **kwargs)
+
+    async def set_hsl_unack(self, h, s, l, **kwargs):
+
+        self.notify(Light.HueProperty, h)
+        self.notify(Light.SaturationProperty, s)
+        self.notify(Light.BrightnessProperty, l)
+
+        client = self._app.elements[0][models.LightHSLClient]
+        await client.set_hsl_unack(self.unicast, app_index=self._app.app_keys[0][0], lightness=l, hue=h, saturation=s, transition_time=0, **kwargs)
 
     async def get_lightness(self):
         client = self._app.elements[0][models.LightLightnessClient]

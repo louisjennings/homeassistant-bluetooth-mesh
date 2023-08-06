@@ -62,6 +62,9 @@ class GenericLightBridge(HassMqttBridge):
             message["min_mireds"] = node.config.optional("min_mireds", BLE_MESH_MIN_MIRED)
             message["max_mireds"] = node.config.optional("max_mireds", BLE_MESH_MAX_MIRED)
 
+        if node.supports(Light.HueProperty) and node.supports(Light.SaturationProperty):
+            color_modes.add("hs")
+
         if color_modes:
             message["color_mode"] = True
             message["supported_color_modes"] = list(color_modes)
@@ -97,6 +100,13 @@ class GenericLightBridge(HassMqttBridge):
             if desired_brightness > BLE_MESH_MAX_LIGHTNESS:
                 desired_brightness = BLE_MESH_MAX_LIGHTNESS
             await node.set_brightness(brightness=desired_brightness, ack=node.config.optional("ack"))
+
+        if "color" in payload:
+            h = int(payload["color"]["h"]*0xffff/360)
+            s = int(payload["color"]["s"]*0xffff/100)
+            l = node.retained(Light.BrightnessProperty, 0xFFFF)
+
+            await node.set_hsl_unack(h=h,s=s,l=l)
 
         if payload.get("state") == "ON":
             await node.turn_on(ack=node.config.optional("ack"))
