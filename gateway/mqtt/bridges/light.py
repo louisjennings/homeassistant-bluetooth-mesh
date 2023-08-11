@@ -85,8 +85,11 @@ class GenericLightBridge(HassMqttBridge):
                 int(node.retained(Light.BrightnessProperty, BLE_MESH_MAX_LIGHTNESS)) / self.brightness_max * 100
             )
 
-        if onoff and node.supports(Light.TemperatureProperty):
+        if onoff and node.supports(Light.TemperatureProperty) and (node.retained(Light.ModeProperty, None) == 'ctl'):
             message["color_temp"] = node.retained(Light.TemperatureProperty, BLE_MESH_MAX_TEMPERATURE)
+
+        if onoff and node.supports(Light.HueProperty) and node.supports(Light.SaturationProperty) and (node.retained(Light.ModeProperty, None) == 'hsl'):
+            message["color"] = {'h': node.retained(Light.HueProperty, None)/0xFFFF * 360, 's': node.retained(Light.SaturationProperty, None) / 0xFFFF * 100}
 
         await self._messenger.publish(self.component, node, "state", message, retain=True)
 
@@ -96,17 +99,27 @@ class GenericLightBridge(HassMqttBridge):
 
         if "brightness" in payload:
             brightness = int(payload["brightness"])
-            desired_brightness = int(brightness * self.brightness_max / 100)
-            if desired_brightness > BLE_MESH_MAX_LIGHTNESS:
-                desired_brightness = BLE_MESH_MAX_LIGHTNESS
-            await node.set_brightness(brightness=desired_brightness, ack=node.config.optional("ack"))
+
+            if node.retained(Light.ModeProperty, 'ctl') == 'ctl':
+                desired_brightness = int(brightness * self.brightness_max / 100)
+                if desired_brightness > BLE_MESH_MAX_LIGHTNESS:
+                    desired_brightness = BLE_MESH_MAX_LIGHTNESS
+                await node.set_brightness(brightness=desired_brightness, ack=node.config.optional("ack"))
+            elif node.retained(Light.ModeProperty, None) == 'hsl':
+                h = node.retained(Light.HueProperty, 0)
+                s = node.retained(Light.SaturationProperty, 0xFFFF)
+                l = brightness * 0xFFFF // 100
+                await node.hsl(h=h,s=s,l=l)
+            else:
+                raise NotImplemented(f"Cannot set brightness for mode: {node.retained(Light.ModeProperty, None)}") 
+
 
         if "color" in payload:
             h = int(payload["color"]["h"]*0xffff/360)
             s = int(payload["color"]["s"]*0xffff/100)
             l = node.retained(Light.BrightnessProperty, 0xFFFF)
 
-            await node.set_hsl_unack(h=h,s=s,l=l)
+            await node.hsl(h=h,s=s,l=l)
 
         if payload.get("state") == "ON":
             await node.turn_on(ack=node.config.optional("ack"))

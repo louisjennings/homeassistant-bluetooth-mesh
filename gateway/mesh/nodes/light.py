@@ -34,6 +34,7 @@ class Light(Generic):
     TemperatureProperty = "temperature"
     HueProperty = "hue"
     SaturationProperty = "saturation"
+    ModeProperty = "mode"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -79,6 +80,14 @@ class Light(Generic):
                 await self.set_ctl_unack(temperature=kelvin)
             else:
                 await self.set_ctl(temperature=kelvin)
+
+    async def hsl(self, h, s, l, ack=False):
+        if self._is_model_bound(models.LightHSLServer):
+            if not ack:
+                await self.set_hsl_unack(h=h,s=s,l=l)
+            else:
+                await self.set_hsl(h=h,s=s,l=l)
+
 
     async def bind(self, app):
         await super().bind(app)
@@ -142,8 +151,17 @@ class Light(Generic):
         client = self._app.elements[0][models.LightLightnessClient]
         await client.set_lightness([self.unicast], app_index=self._app.app_keys[0][0], lightness=lightness, **kwargs)
 
-    async def set_hsl_unack(self, h, s, l, **kwargs):
+    async def set_hsl(self, h, s, l, **kwargs):
+        self.notify(Light.ModeProperty, 'hsl')
+        self.notify(Light.HueProperty, h)
+        self.notify(Light.SaturationProperty, s)
+        self.notify(Light.BrightnessProperty, l)
 
+        client = self._app.elements[0][models.LightHSLClient]
+        await client.set_hsl(self.unicast, app_index=self._app.app_keys[0][0], lightness=l, hue=h, saturation=s, transition_time=0, **kwargs)
+
+    async def set_hsl_unack(self, h, s, l, **kwargs):
+        self.notify(Light.ModeProperty, 'hsl')
         self.notify(Light.HueProperty, h)
         self.notify(Light.SaturationProperty, s)
         self.notify(Light.BrightnessProperty, l)
@@ -180,6 +198,8 @@ class Light(Generic):
         if brightness and brightness > BLE_MESH_MAX_LIGHTNESS:
             brightness = BLE_MESH_MAX_LIGHTNESS
 
+        self.notify(Light.ModeProperty, 'ctl')
+
         if temperature:
             self.notify(Light.TemperatureProperty, temperature)
         else:
@@ -204,6 +224,8 @@ class Light(Generic):
             temperature = BLE_MESH_MIN_TEMPERATURE
         elif temperature and temperature > BLE_MESH_MAX_TEMPERATURE:
             temperature = BLE_MESH_MAX_TEMPERATURE
+
+        self.notify(Light.ModeProperty, 'ctl')
 
         if temperature:
             self.notify(Light.TemperatureProperty, temperature)
