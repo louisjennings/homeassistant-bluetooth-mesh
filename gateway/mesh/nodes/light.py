@@ -12,6 +12,7 @@ BLE_MESH_MIN_TEMPERATURE = 800  # Kelvin
 BLE_MESH_MAX_TEMPERATURE = 20000  # Kelvin
 BLE_MESH_MIN_MIRED = 50
 BLE_MESH_MAX_MIRED = 1250
+BLE_MESH_MAX_HSL_LIGHTNESS = 65535
 
 
 class Light(Generic):
@@ -32,6 +33,9 @@ class Light(Generic):
     OnOffProperty = "onoff"
     BrightnessProperty = "brightness"
     TemperatureProperty = "temperature"
+    HueProperty = "hue"
+    SaturationProperty = "saturation"
+    ModeProperty = "mode"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -91,6 +95,14 @@ class Light(Generic):
             ) + BLE_MESH_MIN_TEMPERATURE
             return int(tuya_level)
 
+    async def hsl(self, h, s, l, ack=False):
+        if self._is_model_bound(models.LightHSLServer):
+            if not ack:
+                await self.set_hsl_unack(h=h,s=s,l=l)
+            else:
+                await self.set_hsl(h=h,s=s,l=l)
+
+
     async def bind(self, app):
         await super().bind(app)
 
@@ -109,6 +121,10 @@ class Light(Generic):
             self._features.add(Light.BrightnessProperty)
             await self.get_ctl()
             await self.get_light_temperature_range()
+
+        if await self.bind_model(models.LightHSLServer):
+            self._features.add(Light.HueProperty)
+            self._features.add(Light.SaturationProperty)
 
     async def set_onoff_unack(self, onoff, **kwargs):
         self.notify(Light.OnOffProperty, onoff)
@@ -149,6 +165,24 @@ class Light(Generic):
         client = self._app.elements[0][models.LightLightnessClient]
         await client.set_lightness([self.unicast], app_index=self._app.app_keys[0][0], lightness=lightness, **kwargs)
 
+    async def set_hsl(self, h, s, l, **kwargs):
+        self.notify(Light.ModeProperty, 'hsl')
+        self.notify(Light.HueProperty, h)
+        self.notify(Light.SaturationProperty, s)
+        self.notify(Light.BrightnessProperty, l)
+
+        client = self._app.elements[0][models.LightHSLClient]
+        await client.set_hsl(self.unicast, app_index=self._app.app_keys[0][0], lightness=l, hue=h, saturation=s, transition_time=0, **kwargs)
+
+    async def set_hsl_unack(self, h, s, l, **kwargs):
+        self.notify(Light.ModeProperty, 'hsl')
+        self.notify(Light.HueProperty, h)
+        self.notify(Light.SaturationProperty, s)
+        self.notify(Light.BrightnessProperty, l)
+
+        client = self._app.elements[0][models.LightHSLClient]
+        await client.set_hsl_unack(self.unicast, app_index=self._app.app_keys[0][0], lightness=l, hue=h, saturation=s, transition_time=0, **kwargs)
+
     async def get_lightness(self):
         client = self._app.elements[0][models.LightLightnessClient]
         state = await client.get_lightness([self.unicast], self._app.app_keys[0][0])
@@ -178,6 +212,8 @@ class Light(Generic):
         if brightness and brightness > BLE_MESH_MAX_LIGHTNESS:
             brightness = BLE_MESH_MAX_LIGHTNESS
 
+        self.notify(Light.ModeProperty, 'ctl')
+
         if temperature:
             self.notify(Light.TemperatureProperty, temperature)
         else:
@@ -205,6 +241,8 @@ class Light(Generic):
             temperature = BLE_MESH_MIN_TEMPERATURE
         elif temperature and temperature > BLE_MESH_MAX_TEMPERATURE:
             temperature = BLE_MESH_MAX_TEMPERATURE
+
+        self.notify(Light.ModeProperty, 'ctl')
 
         if temperature:
             self.notify(Light.TemperatureProperty, temperature)
