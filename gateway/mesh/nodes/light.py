@@ -154,7 +154,7 @@ class Light(Generic):
 
         client = self._app.elements[0][models.LightLightnessClient]
         await client.set_lightness_unack(
-            destination=self.unicast, app_index=self._app.app_keys[0][0], lightness=lightness, **kwargs
+            destination=self.unicast, app_index=self._app.app_keys[0][0], lightness=lightness, transition_time=0, **kwargs
         )
 
     async def set_lightness(self, lightness, **kwargs):

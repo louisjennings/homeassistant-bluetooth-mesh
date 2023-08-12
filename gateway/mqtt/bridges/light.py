@@ -85,12 +85,16 @@ class GenericLightBridge(HassMqttBridge):
             message["brightness"] = (
                 int(node.retained(Light.BrightnessProperty, BLE_MESH_MAX_LIGHTNESS)) / self.brightness_max * 100
             )
+            message["color_mode"] = 'brightness'
 
         if onoff and node.supports(Light.TemperatureProperty) and (node.retained(Light.ModeProperty, None) == 'ctl'):
-            message["color_temp"] = node.retained(Light.TemperatureProperty, BLE_MESH_MAX_TEMPERATURE)
+            message["color_mode"] = 'color_temp'
+            message["color_temp"] = 1e6 / node.retained(Light.TemperatureProperty, BLE_MESH_MAX_TEMPERATURE)
 
         if onoff and node.supports(Light.HueProperty) and node.supports(Light.SaturationProperty) and (node.retained(Light.ModeProperty, None) == 'hsl'):
             message["color"] = {'h': node.retained(Light.HueProperty, None)/0xFFFF * 360, 's': node.retained(Light.SaturationProperty, None) / 0xFFFF * 100}
+            message["brightness"] = node.retained(Light.BrightnessProperty, BLE_MESH_MAX_LIGHTNESS) / node.config.optional("hsl_ligthness_max", BLE_MESH_MAX_HSL_LIGHTNESS) * 100
+            message["color_mode"] = 'hs'
 
         await self._messenger.publish(self.component, node, "state", message, retain=True)
 
