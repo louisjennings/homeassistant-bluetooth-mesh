@@ -63,7 +63,7 @@ class GenericLightBridge(HassMqttBridge):
             message["min_mireds"] = node.config.optional("mireds_min", BLE_MESH_MIN_MIRED)
             message["max_mireds"] = node.config.optional("mireds_max", BLE_MESH_MAX_MIRED)
 
-        if node.supports(Light.HueProperty) and node.supports(Light.SaturationProperty):
+        if node.supports(Light.HueProperty) and node.supports(Light.SaturationProperty) and node.config.optional("disable_color", False):
             color_modes.add("hs")
 
         if color_modes:
