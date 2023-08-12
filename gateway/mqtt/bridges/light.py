@@ -4,6 +4,7 @@ from mesh.nodes.light import (
     BLE_MESH_MAX_TEMPERATURE,
     BLE_MESH_MAX_MIRED,
     BLE_MESH_MIN_MIRED,
+    BLE_MESH_MAX_HSL_LIGHTNESS,
     Light,
 )
 from mqtt.bridge import HassMqttBridge
@@ -106,9 +107,12 @@ class GenericLightBridge(HassMqttBridge):
                     desired_brightness = BLE_MESH_MAX_LIGHTNESS
                 await node.set_brightness(brightness=desired_brightness, ack=node.config.optional("ack"))
             elif node.retained(Light.ModeProperty, None) == 'hsl':
+                
+                max_hsl_lightness = node.config.optional("hsl_ligthness_max", BLE_MESH_MAX_HSL_LIGHTNESS)
+
                 h = node.retained(Light.HueProperty, 0)
                 s = node.retained(Light.SaturationProperty, 0xFFFF)
-                l = brightness * 0xFFFF // 100
+                l = brightness * max_hsl_lightness // 100
                 await node.hsl(h=h,s=s,l=l)
             else:
                 raise NotImplemented(f"Cannot set brightness for mode: {node.retained(Light.ModeProperty, None)}") 
@@ -119,7 +123,10 @@ class GenericLightBridge(HassMqttBridge):
             s = int(payload["color"]["s"]*0xffff/100)
             l = node.retained(Light.BrightnessProperty, 0xFFFF)
 
-            await node.hsl(h=h,s=s,l=l)
+            max_hsl_lightness = node.config.optional("hsl_ligthness_max", BLE_MESH_MAX_HSL_LIGHTNESS)
+            l_scaled = l * max_hsl_lightness // 0xFFFF
+
+            await node.hsl(h=h,s=s,l=l_scaled)
 
         if payload.get("state") == "ON":
             await node.turn_on(ack=node.config.optional("ack"))
